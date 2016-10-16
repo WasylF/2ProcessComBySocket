@@ -56,13 +56,40 @@ void close_connection(int newsockfd, int sockfd)
 	close(sockfd);
 }
 
+int get_free_port()
+{
+	srand(time(NULL));
+	while (1)
+	{
+		struct sockaddr_in sin;
+		int port = abs(rand())%32767 + 1;
+		int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		if(sockfd == -1) continue;
+
+		bzero((char *) &sin, sizeof(sin));
+
+		sin.sin_family = AF_INET;
+		sin.sin_addr.s_addr = INADDR_ANY;
+		sin.sin_port = htons(port);
+
+		if (bind(sockfd, (struct sockaddr *) &sin, sizeof(sin)) >= 0) 
+		{
+			close(sockfd);
+			return port;
+		}
+	}
+	
+}
 
 int main(int argc, char *argv[])
 {
-	pair<int,int> p = make_connection(1337);
+	int portno = get_free_port();
+	cout<<"Using port: "<<portno<<endl;
+	pair<int,int> p = make_connection(portno);
 
 	char* buffer = new char[256];
-	while (1)
+	bool computed = 0;
+	while (!computed)
 	{
 		read_from_socket(p.first, buffer);
 		printf("Here is the message: %s\n",buffer);
