@@ -1,3 +1,4 @@
+#include <bits/stdc++.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,6 +9,8 @@
 #include <netdb.h> 
 #include <utility>
 #include <string>
+#include <chrono>
+#include <ctime>
 
 using namespace std;
 
@@ -54,30 +57,47 @@ void read_from_socket(int sockfd, char* buffer)
 	if (n < 0) error("ERROR reading from socket");
 }
 
+bool should_I_die(int newsockfd, char* buffer)
+{
+	bzero(buffer,256);
+	int n = recv(newsockfd,buffer,255, MSG_DONTWAIT);
+	if (n < 0) return 0;
+	else return 1;
+}
+
+
 void close_connection(int sockfd)
 {
     close(sockfd);
 }
 
+
+int fib(int n, int sockfd)
+{
+	char* buffer = new char[256];
+	if (should_I_die(sockfd, buffer))
+		exit(0);
+	if (n<2) return 1;
+	return fib(n-1, sockfd) + fib(n-2, sockfd);
+}
+
 int main(int argc, char *argv[])
 {
-	int sockfd = make_connection(1337, "y50-ub");
-	char* buffer = new char[256];
+	sleep(1);
+	int portno = 0;
+	int fibN = 100;
+	if (argc>1) portno = atoi(argv[1]);
+	if (argc>2) fibN = atoi(argv[2]);
 	
-	while (1)
-	{
-		printf("Please enter the message: ");
-		bzero(buffer,256);
-		fgets(buffer,255,stdin);
-		
-		write_to_socket(sockfd, buffer);
+	cout<<"Connecting to port: "<<portno<<endl;
+	int sockfd = make_connection(portno, "y50-ub");
+	char* buffer = new char[1];
 
-		read_from_socket(sockfd, buffer);
+	int res = fib(fibN, sockfd);
 
-		printf("%s\n",buffer);
-	}
-	
-	delete [] buffer;
+	const char* buf = to_string(res).c_str();
+	write_to_socket(sockfd, (char*)buf);
+
 	close_connection(sockfd);
 	
     return 0;

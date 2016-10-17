@@ -1,11 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <bits/stdc++.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <iostream>
 
 using namespace std;
 
@@ -39,14 +36,13 @@ std::pair<int,int> make_connection(int portno)
 void read_from_socket(int newsockfd, char* buffer)
 {
 	bzero(buffer,256);
-	int n = read(newsockfd,buffer,255);
-
-	if (n < 0) error("ERROR reading from socket");
+	int n = recv(newsockfd,buffer,255, MSG_DONTWAIT);
+	if (n < 0) buffer[0] = 'c'; //"computing";
 }
 
 void write_to_socket(int newsockfd)
 {
-	int n = write(newsockfd,"I got your message",18);
+	int n = write(newsockfd,"DIE",3);
 	if (n < 0) error("ERROR writing to socket");
 }
 
@@ -81,23 +77,102 @@ int get_free_port()
 	
 }
 
+void create_process(string command)
+{
+	int pid = fork();
+  	if (pid == -1) cout<<"Error creating process"<<endl;
+  	if (pid == 0)
+	{
+		system(command.c_str());
+		exit(0);
+	}
+}
+
+const int time_interval = 2;
+
 int main(int argc, char *argv[])
 {
 	int portno = get_free_port();
 	cout<<"Using port: "<<portno<<endl;
-	pair<int,int> p = make_connection(portno);
 
+	string command = "./f.out " + std::to_string(portno) + "   100";
+	create_process(command);
+	pair<int,int> f_connection = make_connection(portno);
+	
+	sleep(1);
+	portno = get_free_port();
+	cout<<"Using port: "<<portno<<endl;
+	command = "./g.out " + std::to_string(portno) + "   4";
+	create_process(command);
+	pair<int,int> g_connection = make_connection(portno);
+	
 	char* buffer = new char[256];
 	bool computed = 0;
+
+	// -1 - unknown, 0 - false, 1 - true
+	int f_result = -1;
+	int f = 0;
+	int g_result = -1;
+	int g = 0;
+	
+	
 	while (!computed)
 	{
-		read_from_socket(p.first, buffer);
-		printf("Here is the message: %s\n",buffer);
-		write_to_socket(p.first);
-		//sleep(1);
+		sleep(time_interval);
+		
+		if (f_result == -1)
+		{
+			read_from_socket(f_connection.first, buffer);
+			if (buffer[0] != 'c')
+			{
+				f = atoi(buffer);
+				printf("f result: %d\n", f);
+				f_result = f % 123456 < 54321;
+			} 
+			else
+			{
+				printf("f: still computing\n");
+			}
+		}
+		
+		if (g_result == -1) 
+		{
+			read_from_socket(g_connection.first, buffer);
+			if (buffer[0] != 'c')
+			{
+				g = atoi(buffer);
+				printf("g result: %d\n", g);
+				g_result = g > 10;
+			}
+			else
+			{
+				printf("g: still computing\n");
+			}
+		}
+		
+		computed = (f_result==1 && g_result==1) || f_result==0 || g_result==0; 
+		if (!computed) 
+		{
+			cout<<"Press 1 to continue or 0 to exit: ";
+			int cont;
+			cin>>cont;
+			if (cont==0) computed = 1;
+		}
+		
 	}
-	close_connection(p.first, p.second);
+
+	write_to_socket(f_connection.first);
+	write_to_socket(g_connection.first);
+	
+	close_connection(f_connection.first, f_connection.second);
+	close_connection(g_connection.first, g_connection.second);
 	delete [] buffer;
+	
+	
+	cout<<endl<<endl<<"######################"<<endl;
+	cout<<"f_result: "<<f_result<<endl;
+	cout<<"g_result: "<<g_result<<endl;
+	cout<<"total_result: "<<(f_result==1 && g_result==1)<<endl;
 	
 	return 0;
 }
