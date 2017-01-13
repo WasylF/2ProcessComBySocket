@@ -50,6 +50,7 @@ void write_to_socket(int sockfd, char* buffer)
 	if (n < 0) error("ERROR writing to socket");
 }
 
+
 void close_connection(int sockfd)
 {
     close(sockfd);

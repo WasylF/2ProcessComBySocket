@@ -40,12 +40,6 @@ void read_from_socket(int newsockfd, char* buffer)
 	if (n < 0) buffer[0] = 'c'; //"computing";
 }
 
-void write_to_socket(int newsockfd)
-{
-	int n = write(newsockfd,"DIE",3);
-	if (n < 0) error("ERROR writing to socket");
-}
-
 void close_connection(int newsockfd, int sockfd)
 {
 	close(newsockfd);
@@ -68,16 +62,16 @@ int get_free_port()
 		sin.sin_addr.s_addr = INADDR_ANY;
 		sin.sin_port = htons(port);
 
-		if (bind(sockfd, (struct sockaddr *) &sin, sizeof(sin)) >= 0) 
+		if (bind(sockfd, (struct sockaddr *) &sin, sizeof(sin)) >= 0)
 		{
 			close(sockfd);
 			return port;
 		}
 	}
-	
+
 }
 
-void create_process(string command)
+int create_process(string command)
 {
 	int pid = fork();
   	if (pid == -1) cout<<"Error creating process"<<endl;
@@ -86,6 +80,11 @@ void create_process(string command)
 		system(command.c_str());
 		exit(0);
 	}
+	else
+	{
+        return pid;
+	}
+	return 0;
 }
 
 const int time_interval = 2;
@@ -96,16 +95,16 @@ int main(int argc, char *argv[])
 	cout<<"Using port: "<<portno<<endl;
 
 	string command = "./f.out " + std::to_string(portno) + "   100";
-	create_process(command);
+	int fPid = create_process(command);
 	pair<int,int> f_connection = make_connection(portno);
-	
+
 	sleep(1);
 	portno = get_free_port();
 	cout<<"Using port: "<<portno<<endl;
-	command = "./g.out " + std::to_string(portno) + "   4";
-	create_process(command);
+	command = "./g.out " + std::to_string(portno) + "   10";
+	int gPid = create_process(command);
 	pair<int,int> g_connection = make_connection(portno);
-	
+
 	char* buffer = new char[256];
 	bool computed = 0;
 
@@ -114,12 +113,12 @@ int main(int argc, char *argv[])
 	int f = 0;
 	int g_result = -1;
 	int g = 0;
-	
-	
+
+
 	while (!computed)
 	{
 		sleep(time_interval);
-		
+
 		if (f_result == -1)
 		{
 			read_from_socket(f_connection.first, buffer);
@@ -128,14 +127,14 @@ int main(int argc, char *argv[])
 				f = atoi(buffer);
 				printf("f result: %d\n", f);
 				f_result = f % 123456 < 54321;
-			} 
+			}
 			else
 			{
 				printf("f: still computing\n");
 			}
 		}
-		
-		if (g_result == -1) 
+
+		if (g_result == -1)
 		{
 			read_from_socket(g_connection.first, buffer);
 			if (buffer[0] != 'c')
@@ -149,30 +148,29 @@ int main(int argc, char *argv[])
 				printf("g: still computing\n");
 			}
 		}
-		
-		computed = (f_result==1 && g_result==1) || f_result==0 || g_result==0; 
-		if (!computed) 
+
+		computed = (f_result==1 && g_result==1) || f_result==0 || g_result==0;
+		if (!computed)
 		{
 			cout<<"Press 1 to continue or 0 to exit: ";
 			int cont;
 			cin>>cont;
 			if (cont==0) computed = 1;
 		}
-		
+
 	}
 
-	write_to_socket(f_connection.first);
-	write_to_socket(g_connection.first);
-	
 	close_connection(f_connection.first, f_connection.second);
 	close_connection(g_connection.first, g_connection.second);
 	delete [] buffer;
-	
-	
+
+    kill(fPid, SIGTERM);
+    kill(gPid, SIGTERM);
+
 	cout<<endl<<endl<<"######################"<<endl;
 	cout<<"f_result: "<<f_result<<endl;
 	cout<<"g_result: "<<g_result<<endl;
 	cout<<"total_result: "<<(f_result==1 && g_result==1)<<endl;
-	
+
 	return 0;
 }
